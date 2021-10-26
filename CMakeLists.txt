@@ -659,6 +659,145 @@ print_properties(pxtidb)
 
 
 #######################################################################################################################
+# Global variables for helper scripts.
+# LINT_FILES    :   All the files that are to be linted. Exposed since other tools may want to use them.
+# CLANG_TOOLS_SEARCH_PATH   :   Where to look for clang programs like clang-format and clang-tidy.
+#######################################################################################################################
+
+file(GLOB_RECURSE LINT_FILES
+        "${PROJECT_SOURCE_DIR}/src/*.hh"
+        "${PROJECT_SOURCE_DIR}/src/*.cc"
+#        "${PROJECT_SOURCE_DIR}/test/*.hh"
+#        "${PROJECT_SOURCE_DIR}/test/*.cc"
+        )
+
+set(CLANG_TOOLS_SEARCH_PATH
+        "/usr/local/bin"
+        "/usr/bin"
+        "/usr/local/opt/llvm/bin"
+        "/usr/local/opt/llvm@8/bin"
+        "/usr/local/Cellar/llvm/8.0.1/bin"
+        )
+
+#######################################################################################################################
+# check-censored    :   Grep the repository for some bad keywords. Brittle, but cheap and useful.
+#######################################################################################################################
+
+# If allowing entire files becomes necessary, do it here. Make it harder so that people try not to do it.
+# file(GLOB_RECURSE UNCENSORED_FILES "${PROJECT_SOURCE_DIR}/src/...")
+# list(REMOVE_ITEM CENSOR_FILES ${UNCENSORED_FILES})
+
+set(BAD_WORDS_FILE ${BUILD_SUPPORT_DATA_DIR}/bad_words.txt)
+if (NOT EXISTS ${BAD_WORDS_FILE})
+    message(STATUS "[MISSING] bad words at ${BUILD_SUPPORT_DATA_DIR}/bad_words.txt, no check-censored.")
+else ()
+    add_custom_target(check-censored                                        # Make the "check-censored" target.
+            grep --invert-match -n -e '^ *//' -e '^ *[*]' ${LINT_FILES}     # Check all uncommented lines with line num.
+            | grep -f ${BAD_WORDS_FILE}                                     # For bad words, case sensitive.
+            | grep --invert-match -e 'NOLINT'                               # And that are not marked as NOLINT.
+
+            # Start of allowlist.
+
+            # Description: allow usage of 'inline' in execution engine.
+            # Reason: pmenon 2019/08/13
+            # All the bytecode handler functions have to be inline to ensure one definition.
+            # gen_opt_bc also cleans up the modules to add the odr to all functions.
+            # On top of that, many are marked ALWAYS_INLINE to force physical inlining into the VM.
+            # These are hand-selected by Prashanth based on profiling.
+#            | grep --invert-match -e 'src/include/execution/.*:.*inline\\b.*'
+#            | grep --invert-match -e 'src/execution/ast/context.cpp.*:.*inline\\b.*'
+#            | grep --invert-match -e 'src/execution/vm/vm.cpp.*:.*inline\\b.*'
+
+            # Description: Regions, memory pool chunks, and vm stacks are managed using malloc and free.
+#            | grep --invert-match -e 'src/execution/sql/memory_pool.cpp:.*malloc\(.*'
+#            | grep --invert-match -e 'src/execution/sql/memory_pool.cpp:.*calloc\(.*'
+#            | grep --invert-match -e 'src/execution/sql/memory_pool.cpp:.*free\(.*'
+#            | grep --invert-match -e 'src/execution/util/region.cpp:.*malloc\(.*'
+#            | grep --invert-match -e 'src/execution/util/region.cpp:.*free\(.*'
+#            | grep --invert-match -e 'src/execution/vm/vm.cpp:.*free\(.*'
+
+            # End of allowlist.
+
+            || exit 0                                                     # If nothing found, return 0.
+            && exit 1                                                     # Else return 1, note || && left-associative.
+            USES_TERMINAL
+            )
+    message(STATUS "[ADDED] check-censored")
+endif ()
+unset(BAD_WORDS_FILE)
+
+#######################################################################################################################
+# check-lint        :   Run the cpplint python script.
+#######################################################################################################################
+
+add_pxtidb_dep_singlefile(cpplint https://raw.githubusercontent.com/cpplint/cpplint/5b4259ef4c94d34e98192f53466c8af5e9d1c259/cpplint.py)
+execute_process(COMMAND chmod +x "${cpplint_SOURCE_DIR}")
+find_program(CPPLINT_BIN NAMES cpplint.py HINTS ${cpplint_SOURCE_DIR})
+
+if ("${CPPLINT_BIN}" STREQUAL "CPPLINT_BIN-NOTFOUND")
+    message(STATUS "[MISSING] cpplint at ${cpplint_SOURCE_DIR}/cpplint.py, no check-lint.")
+else ()
+    # Balancing act: cpplint.py takes a non-trivial time to launch, so process 12 files per invocation with parallelism.
+    add_custom_target(check-lint
+            COMMENT "Running: echo LINT_FILES | xargs -n12 -P8 python3 ${CPPLINT_BIN} --verbose=2 --linelength=120 --quiet --filter=legal/copyright,-build/header_guard"
+            COMMAND echo '${LINT_FILES}' | xargs -n12 -P8
+            python3 ${CPPLINT_BIN}
+            --verbose=2 --linelength=120 --quiet
+            --filter=-legal/copyright,-build/header_guard
+            USES_TERMINAL
+            )
+    message(STATUS "[ADDED] check-lint (${CPPLINT_BIN})")
+endif ()
+unset(${CPPLINT_BIN})
+
+
+#######################################################################################################################
+# format            :   Reformat the codebase according to standards.
+# check-format      :   Check if the codebase is formatted according to standards.
+#######################################################################################################################
+
+find_program(CLANG_FORMAT_BIN NAMES clang-format-8 clang-format HINTS ${CLANG_TOOLS_SEARCH_PATH})
+if ("${CLANG_FORMAT_BIN}" STREQUAL "CLANG_FORMAT_BIN-NOTFOUND")
+    message(STATUS "[MISSING] clang-format not found, no format and no check-format.")
+else ()
+    # The directories to be formatted. Note that we modified the format script to take in multiple arguments.
+    string(CONCAT FORMAT_DIRS
+            "${CMAKE_CURRENT_SOURCE_DIR}/benchmark,"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src,"
+            "${CMAKE_CURRENT_SOURCE_DIR}/test,"
+            )
+
+    # Run clang-format and update files in place.
+    add_custom_target(format
+            ${BUILD_SUPPORT_DIR}/run_clang_format.py
+            ${CLANG_FORMAT_BIN}
+            ${BUILD_SUPPORT_DATA_DIR}/clangformat_suppressions.txt
+            --source_dirs
+            ${FORMAT_DIRS}
+            --fix
+            --quiet
+            USES_TERMINAL
+            )
+
+    # Run clang-format and exit with a non-zero exit code if any files need to be reformatted.
+    add_custom_target(check-format
+            ${BUILD_SUPPORT_DIR}/run_clang_format.py
+            ${CLANG_FORMAT_BIN}
+            ${BUILD_SUPPORT_DATA_DIR}/clangformat_suppressions.txt
+            --source_dirs
+            ${FORMAT_DIRS}
+            --quiet
+            USES_TERMINAL
+            )
+
+    message(STATUS "[ADDED] clang-format and check-clang-format (${CLANG_FORMAT_BIN})")
+
+    unset(FORMAT_DIRS)
+endif ()
+unset(CLANG_FORMAT_BIN)
+
+
+#######################################################################################################################
 # Apply +x permissions to all scripts in the build-support folder.
 #######################################################################################################################
 

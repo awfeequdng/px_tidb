@@ -1,0 +1,14 @@
+#include "include/
+\binline\b
+\bcalloc(
+\bmalloc(
+\bfree(
+\bstd::cout\b
+\bstd::cerr\b
+\bcout\b
+\bcerr\b
+\bprintf(
+\bshared_ptr\b
+\bmake_shared\b
+\bweak_ptr\b
+\bnamespace .*_.* {
