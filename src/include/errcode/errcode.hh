@@ -5,7 +5,7 @@ namespace errcode {
 
 // MySQL error code.
 // This value is numeric. It is not portable to other database systems.
-enum MYSQL_ERROR: uint16_t {
+enum MYSQL_ERROR : uint16_t {
     ErrErrorFirst = 1000,
     ErrHashchk = 1000,
     ErrNisamchk = 1001,
