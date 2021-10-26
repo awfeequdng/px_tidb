@@ -472,12 +472,12 @@ file(GLOB_RECURSE
         PXTIDB_SRCS                  # Store the list of files into the variable ${PXTIDB_SRCS}.
         CONFIGURE_DEPENDS               # See above. Ask CMake to regenerate the build system if these files change.
         ${PROJECT_SOURCE_DIR}/src/*.cc
-        ${PROJECT_SOURCE_DIR}/src/include/*.h
+        ${PROJECT_SOURCE_DIR}/src/include/*.hh
 #        ${PROJECT_SOURCE_DIR}/third_party/bwtree/*.cpp
 #        ${PROJECT_SOURCE_DIR}/third_party/bwtree/*.h
         )
 # Remove the main program from pxtidb sources.
-list(REMOVE_ITEM PXTIDB_SRCS ${PROJECT_SOURCE_DIR}/src/main/main.cc)
+list(REMOVE_ITEM PXTIDB_SRCS ${PROJECT_SOURCE_DIR}/src/tidb-server/main.cc)
 
 # Build pxtidb as an OBJECT library first, i.e., a .o file per corresponding .cpp file.
 # The OBJECT library is built first so that the same .o files can be linked into static and shared libraries.
@@ -569,13 +569,12 @@ if (${PXTIDB_ENABLE_SHARED})
     target_link_libraries(pxtidb_shared PUBLIC pxtidb_objlib)           # Consumers will inherit this link.
 endif ()
 
-
 #######################################################################################################################
 # HEADER pxtidb binary.
 # pxtidb             :   The main DBMS binary.
 #######################################################################################################################
 
-add_executable(pxtidb src/main/main.cc)
+add_executable(pxtidb src/tidb-server/main.cc)
 target_compile_options(pxtidb PRIVATE "-Werror" "-Wall")
 target_link_libraries(pxtidb pxtidb_static)
 set_target_properties(pxtidb PROPERTIES CXX_EXTENSIONS OFF ENABLE_EXPORTS ON)
@@ -591,7 +590,6 @@ add_custom_command(
         POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy "${BUILD_SUPPORT_DIR}/data/replication.config" "${CMAKE_BINARY_DIR}/bin/replication.config"
 )
-
 
 #######################################################################################################################
 # HEADER Tests.
@@ -620,7 +618,6 @@ set_target_properties(
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
-
 if (${PXTIDB_ENABLE_SHARED})
     set_target_properties(
             pxtidb_shared
@@ -630,7 +627,6 @@ if (${PXTIDB_ENABLE_SHARED})
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
     )
 endif ()
-
 
 #######################################################################################################################
 # HEADER Miscellaneous.
