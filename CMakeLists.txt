@@ -421,7 +421,7 @@ add_pxtidb_dep(spdlog https://github.com/gabime/spdlog.git v1.8.1)
 add_pxtidb_dep(xbyak https://github.com/herumi/xbyak.git v5.77)
 add_pxtidb_dep(xxHash https://github.com/Cyan4973/xxHash.git v0.8.0)
 add_pxtidb_dep(fast_float https://github.com/lemire/fast_float.git v1.0.0)
-
+add_pxtidb_dep(utf8proc https://github.com/JuliaStrings/utf8proc.git v2.6.1)
 # Handle other dependencies.
 
 # TODO(WAN): libpg_query is CURSED. Someone else is welcome to fix it. Or I may retry in the future.
@@ -511,6 +511,7 @@ target_include_directories(pxtidb_objlib SYSTEM PUBLIC   # SYSTEM PUBLIC: inheri
         ${LLVM_INCLUDE_DIRS}                                # Include LLVM headers.
         ${PXTIDB_INCLUDE_DIRECTORIES}                    # Third-party includes.
         ${CMAKE_BINARY_DIR}/_deps/src/spdlog/include/       # Hack: spdlog.
+        ${CMAKE_BINARY_DIR}/_deps/src/utf8proc
         )
 target_link_options(pxtidb_objlib PUBLIC         # PUBLIC: all consumers of the library inherit the following.
         ${PXTIDB_LINK_OPTIONS}
