@@ -7,6 +7,13 @@
 #include "utf8proc.h"
 
 namespace common::utf8 {
+class Pos {
+public:
+    int _line;
+    int _col;
+    int _offset;
+};
+
 struct rune_t final {
     constexpr rune_t() = default;
 
@@ -25,6 +32,10 @@ struct rune_t final {
     bool operator<(int32_t rhs) const;
 
     bool operator>(int32_t rhs) const;
+
+    bool operator<=(int32_t rhs) const;
+
+    bool operator>=(int32_t rhs) const;
 
     [[nodiscard]] bool is_eof() const;
 
@@ -53,6 +64,10 @@ struct rune_t final {
     bool operator<(const rune_t &rhs) const;
 
     bool operator>(const rune_t &rhs) const;
+
+    bool operator<=(const rune_t &rhs) const;
+
+    bool operator>=(const rune_t &rhs) const;
 
     bool operator==(const rune_t &rhs) const;
 

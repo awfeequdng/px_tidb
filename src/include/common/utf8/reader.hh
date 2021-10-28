@@ -6,12 +6,6 @@
 #include "common/utf8/rune.hh"
 
 namespace common::utf8 {
-class Pos {
-public:
-    int _line;
-    int _col;
-    int _offset;
-};
 
 class reader_t final {
 public:
@@ -35,11 +29,20 @@ public:
 
     [[nodiscard]] Pos pos() const;
 
+    [[nodiscard]] size_t index() const;
+
     [[nodiscard]] uint32_t width() const;
 
     [[nodiscard]] std::string_view make_slice(size_t offset, size_t length) const;
 
     [[nodiscard]] std::string_view slice() const;
+
+    rune_t incAsLongAs(std::function<bool(rune_t)> fn);
+
+    std::string data(const Pos &from) {
+        std::string_view str_view = make_slice(from._offset, _index - from._offset);
+        return {str_view.begin(), str_view.end()};
+    }
 
 private:
     rune_t read(uint32_t &width) const;

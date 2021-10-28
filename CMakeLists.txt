@@ -419,6 +419,7 @@ add_pxtidb_dep(xbyak https://github.com/herumi/xbyak.git v5.77)
 add_pxtidb_dep(xxHash https://github.com/Cyan4973/xxHash.git v0.8.0)
 add_pxtidb_dep(fast_float https://github.com/lemire/fast_float.git v1.0.0)
 add_pxtidb_dep(utf8proc https://github.com/JuliaStrings/utf8proc.git v2.6.1)
+add_pxtidb_dep(stx https://github.com/lamarrr/STX.git v1.0.1)
 # Handle other dependencies.
 
 # Include the source of the dependencies as sources that pxtidb can include.
@@ -730,6 +731,7 @@ endfunction()
 
 file(GLOB_RECURSE PXTIDB_TEST_SOURCES
         "test/common/*.cc"
+        "test/parser/*.cc"
         )
 
 foreach (PXTIDB_TEST_CC ${PXTIDB_TEST_SOURCES})

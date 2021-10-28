@@ -13,7 +13,33 @@ bool rune_t::is_digit() const {
     return utf8proc_category(_value) == UTF8PROC_CATEGORY_ND;
 }
 
-bool rune_t::is_space() const { return isspace(_value); }
+// in the Latin-1 space this is
+//	'\t', '\n', '\v', '\f', '\r', ' ', U+0085 (NEL), U+00A0 (NBSP).
+// Other definitions of spacing characters are set by category
+// Z and property Pattern_White_Space.
+bool rune_t::is_space() const {
+    if (_value < 0x80) {
+        return isspace(_value);
+    } else if (_value <= 0xff) {
+        switch (_value) {
+            case 0x85:
+                [[fallthrough]];
+            case 0xA0:
+                return true;
+            default:
+                return false;
+        }
+    } else {
+        // todo: this is not test
+        switch (utf8proc_category(_value)) {
+            case UTF8PROC_CATEGORY_MC:
+            case UTF8PROC_CATEGORY_ZS:
+                return true;
+            default:
+                return false;
+        }
+    }
+}
 
 bool rune_t::is_xdigit() const {
     if (_value < 0x80) return isxdigit(_value) != 0;
@@ -69,15 +95,23 @@ bool rune_t::operator!=(char rhs) const { return static_cast<char>(_value) != rh
 
 bool rune_t::operator<(int32_t rhs) const { return _value < rhs; }
 
+bool rune_t::operator<=(int32_t rhs) const { return _value <= rhs; }
+
 bool rune_t::operator>(int32_t rhs) const { return _value > rhs; }
 
+bool rune_t::operator>=(int32_t rhs) const { return _value >= rhs; }
+
 bool rune_t::operator<(const rune_t &rhs) const { return _value < rhs._value; }
+
+bool rune_t::operator<=(const rune_t &rhs) const { return _value <= rhs._value; }
 
 bool rune_t::operator==(const rune_t &rhs) const { return _value == rhs._value; }
 
 bool rune_t::operator!=(const rune_t &rhs) const { return _value != rhs._value; }
 
 bool rune_t::operator>(const rune_t &rhs) const { return _value > rhs._value; }
+
+bool rune_t::operator>=(const rune_t &rhs) const { return _value >= rhs._value; }
 
 std::ostream &operator<<(std::ostream &os, const rune_t &rune) {
     auto encode_result = encode(rune);

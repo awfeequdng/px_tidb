@@ -9,3 +9,27 @@ TEST(RuneTest, utf8) {
     std::string str = (std::string)rune;
     EXPECT_EQ(str, "中");
 }
+
+// in the Latin-1 space this is
+//	'\t', '\n', '\v', '\f', '\r', ' ', U+0085 (NEL), U+00A0 (NBSP).
+// Other definitions of spacing characters are set by category
+// Z and property Pattern_White_Space.
+TEST(RuneTest, whitespace) {
+    common::utf8::rune_t rune;
+    rune = 0xA0;
+    EXPECT_TRUE(rune.is_space());
+    rune = 0x85;
+    EXPECT_TRUE(rune.is_space());
+    rune = '\t';
+    EXPECT_TRUE(rune.is_space());
+    rune = '\n';
+    EXPECT_TRUE(rune.is_space());
+    rune = '\v';
+    EXPECT_TRUE(rune.is_space());
+    rune = '\f';
+    EXPECT_TRUE(rune.is_space());
+    rune = '\r';
+    EXPECT_TRUE(rune.is_space());
+    rune = ' ';
+    EXPECT_TRUE(rune.is_space());
+}

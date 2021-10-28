@@ -10,6 +10,8 @@ bool reader_t::eof() const { return _index > _slice.size() - 1; }
 
 Pos reader_t::pos() const { return _pos; }
 
+size_t reader_t::index() const { return _index; }
+
 uint32_t reader_t::width() const {
     uint32_t width;
     read(width);
@@ -130,6 +132,19 @@ rune_t reader_t::read(uint32_t &width) const {
 
 std::string_view reader_t::make_slice(size_t offset, size_t length) const {
     return std::string_view(_slice.data() + offset, length);
+}
+
+rune_t reader_t::incAsLongAs(std::function<bool(rune_t)> fn) {
+    auto ch = curr();
+    while (true) {
+        if (!fn(ch)) {
+            return ch;
+        }
+        if (ch.is_errored()) {
+            return rune_t{0};
+        }
+        ch = next();
+    }
 }
 
 }  // namespace common::utf8

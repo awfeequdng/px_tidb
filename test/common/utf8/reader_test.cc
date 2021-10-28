@@ -178,3 +178,13 @@ TEST(Utf8ReaderTest, test_set_index) {
     EXPECT_EQ(pos._offset, 3);
     EXPECT_EQ((std::string)rune, "国");
 }
+
+TEST(Utf8ReaderTest, test_make_slice) {
+    std::string str = "中国人";
+    reader_t reader(str);
+
+    EXPECT_EQ(reader.make_slice(0, 9), "中国人");
+    EXPECT_EQ(reader.make_slice(3, 6), "国人");
+    EXPECT_EQ(reader.make_slice(3, 3), "国");
+    EXPECT_EQ(reader.make_slice(6, 3), "人");
+}
