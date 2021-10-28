@@ -1,23 +1,25 @@
 #pragma once
 #include <stack>
 #include <string_view>
+#include <unordered_map>
 
 #include "common/utf8/rune.hh"
 
 namespace common::utf8 {
+class Pos {
+public:
+    int _line;
+    int _col;
+    int _offset;
+};
+
 class reader_t final {
 public:
     reader_t(std::string_view slice);
 
-    void push_mark();
-
-    size_t pop_mark();
-
-    size_t current_mark();
-
     bool seek(size_t index);
 
-    void restore_top_mark();
+    [[nodiscard]] size_t length();
 
     rune_t curr();
 
@@ -31,7 +33,7 @@ public:
 
     [[nodiscard]] bool eof() const;
 
-    [[nodiscard]] size_t pos() const;
+    [[nodiscard]] Pos pos() const;
 
     [[nodiscard]] uint32_t width() const;
 
@@ -45,7 +47,8 @@ private:
 private:
     size_t _index{};
     std::string_view _slice;
-    std::stack<size_t> _mark_stack;
+    Pos _pos{1, 1, 0};
+    std::unordered_map<size_t, Pos> _idx2pos;
     std::stack<uint32_t> _width_stack;
 };
 }  // namespace common::utf8

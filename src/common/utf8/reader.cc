@@ -2,24 +2,13 @@
 
 namespace common::utf8 {
 
-reader_t::reader_t(std::string_view slice) : _slice(slice), _mark_stack(), _width_stack() {}
+reader_t::reader_t(std::string_view slice) : _slice(slice), _width_stack() {}
 
-void reader_t::push_mark() { _mark_stack.push(_index); }
+size_t reader_t::length() { return _slice.length(); }
 
 bool reader_t::eof() const { return _index > _slice.size() - 1; }
 
-size_t reader_t::pop_mark() {
-    const auto mark = _mark_stack.top();
-    _mark_stack.pop();
-    return mark ? mark : _index;
-}
-
-size_t reader_t::pos() const { return _index; }
-
-size_t reader_t::current_mark() {
-    auto mark = _mark_stack.top();
-    return mark ? mark : _index;
-}
+Pos reader_t::pos() const { return _pos; }
 
 uint32_t reader_t::width() const {
     uint32_t width;
@@ -29,9 +18,26 @@ uint32_t reader_t::width() const {
 
 bool reader_t::seek(size_t index) {
     if (index > _slice.size() - 1) return false;
-    _index = index;
-    while (!_width_stack.empty()) _width_stack.pop();
-    while (!_mark_stack.empty()) _mark_stack.pop();
+    // does not have record of pos index, so it can not move to position to 'index'
+    if (_idx2pos.find(index) == _idx2pos.end()) return false;
+
+    // can not move to index behand _index
+    if (_index < index) return false;
+
+    auto stk_tmp = _width_stack;
+    auto index_tmp = _index;
+
+    while (index_tmp > index && !stk_tmp.empty()) {
+        index_tmp -= stk_tmp.top();
+        stk_tmp.pop();
+    }
+    if (index_tmp != index) {
+        // does not back to a valid position
+        return false;
+    }
+    _index = index_tmp;
+    _width_stack = std::move(stk_tmp);
+    _pos = _idx2pos[_index];
     return true;
 }
 
@@ -49,12 +55,14 @@ rune_t reader_t::next() {
     auto rune = read(width);
     _index += width;
     _width_stack.push(width);
+    if (rune == '\n') {
+        _pos._line++;
+        _pos._col = 0;
+    }
+    _pos._col += width;
+    _pos._offset = _index;
+    _idx2pos[_index] = _pos;
     return rune;
-}
-
-void reader_t::restore_top_mark() {
-    if (_mark_stack.empty()) return;
-    _index = _mark_stack.top();
 }
 
 rune_t reader_t::prev() {
@@ -62,6 +70,7 @@ rune_t reader_t::prev() {
         return rune_invalid;
     }
     _index -= _width_stack.top();
+    _pos = _idx2pos[_index];
     _width_stack.pop();
     uint32_t width;
     return read(width);
@@ -71,8 +80,8 @@ bool reader_t::move_prev() {
     if (_index == 0 || _width_stack.empty()) {
         return false;
     }
-
     _index -= _width_stack.top();
+    _pos = _idx2pos[_index];
     _width_stack.pop();
 
     return true;
@@ -84,8 +93,16 @@ bool reader_t::move_next() {
     }
 
     uint32_t width;
-    read(width);
+    rune_t rune = read(width);
     _index += width;
+    if (rune == '\n') {
+        _pos._line++;
+        _pos._col = 0;
+    }
+    _pos._col += width;
+    _pos._offset = _index;
+    _idx2pos[_index] = _pos;
+
     _width_stack.push(width);
     return true;
 }
