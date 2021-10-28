@@ -401,9 +401,6 @@ set(GFLAGS_BUILD_PACKAGING OFF)                     # Disable building gflags pa
 # ZeroMQ build settings.
 set(CPPZMQ_BUILD_TESTS OFF CACHE INTERNAL "Disable building CPPZMQ tests.")
 
-# Include the source of the dependencies as sources that pxtidb can include.
-list(APPEND PXTIDB_INCLUDE_DIRECTORIES ${CMAKE_BINARY_DIR}/_deps/src/)
-
 # Fetch single-file dependencies.
 add_pxtidb_dep_singlefile(csv https://raw.githubusercontent.com/vincentlaucsb/csv-parser/92694230ba4863a436b6533788e590fce70b5f44/single_include/csv.hpp)
 add_pxtidb_dep_singlefile(portable_endian https://gist.githubusercontent.com/panzi/6856583/raw/1eca2ab34f2301b9641aa73d1016b951fff3fc39/portable_endian.h)
@@ -424,15 +421,21 @@ add_pxtidb_dep(fast_float https://github.com/lemire/fast_float.git v1.0.0)
 add_pxtidb_dep(utf8proc https://github.com/JuliaStrings/utf8proc.git v2.6.1)
 # Handle other dependencies.
 
+# Include the source of the dependencies as sources that pxtidb can include.
+list(APPEND PXTIDB_INCLUDE_DIRECTORIES ${CMAKE_BINARY_DIR}/_deps/src/)
+list(APPEND PXTIDB_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/src/include/)
+list(APPEND PXTIDB_INCLUDE_DIRECTORIES ${CMAKE_BINARY_DIR}/_deps/src/spdlog/include/)       # Hack: spdlog.
+list(APPEND PXTIDB_INCLUDE_DIRECTORIES ${CMAKE_BINARY_DIR}/_deps/src/utf8proc/)
+
 # TODO(WAN): libpg_query is CURSED. Someone else is welcome to fix it. Or I may retry in the future.
-add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/libpg_query/ EXCLUDE_FROM_ALL)
+#add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/libpg_query/ EXCLUDE_FROM_ALL)
 
 # libpqxx.
-find_library(PQXX_LIBRARIES NAMES pqxx libpqxx REQUIRED)
-find_path(PQXX_INCLUDE_DIRECTORIES NAMES pqxx/pqxx REQUIRED)
-list(APPEND PXTIDB_LINK_LIBRARIES ${PQXX_LIBRARIES})
-list(APPEND PXTIDB_INCLUDE_DIRECTORIES ${PQXX_INCLUDE_DIRECTORIES})
-message(STATUS "[FOUND] pqxx (dir:${PQXX_INCLUDE_DIRECTORIES} lib:${PQXX_LIBRARIES})")
+#find_library(PQXX_LIBRARIES NAMES pqxx libpqxx REQUIRED)
+#find_path(PQXX_INCLUDE_DIRECTORIES NAMES pqxx/pqxx REQUIRED)
+#list(APPEND PXTIDB_LINK_LIBRARIES ${PQXX_LIBRARIES})
+#list(APPEND PXTIDB_INCLUDE_DIRECTORIES ${PQXX_INCLUDE_DIRECTORIES})
+#message(STATUS "[FOUND] pqxx (dir:${PQXX_INCLUDE_DIRECTORIES} lib:${PQXX_LIBRARIES})")
 
 # libevent.
 pkg_search_module(EVENT REQUIRED libevent)
@@ -501,19 +504,17 @@ target_compile_options(pxtidb_objlib PUBLIC      # PUBLIC: all consumers of the 
         "-mcx16"                                    # Allow CMPXCHG16B (16-byte compare and exchange).
         ${PXTIDB_COMPILE_OPTIONS}
         )
-target_compile_features(pxtidb_objlib PUBLIC     # PUBLIC: all consumers of the library inherit the following.
+target_compile_features(pxtidb_objlib PUBLIC        # PUBLIC: all consumers of the library inherit the following.
         cxx_std_20                                  # Require support for C++20.
         )
-target_include_directories(pxtidb_objlib PUBLIC  # PUBLIC: all consumers of the library inherit the following.
-        ${PROJECT_SOURCE_DIR}/src/include           # Include NoisePage src/include/ headers.
-        )
+#target_include_directories(pxtidb_objlib PUBLIC     # PUBLIC: all consumers of the library inherit the following.
+#        ${PROJECT_SOURCE_DIR}/src/include           # Include pxtidb src/include/ headers.
+#        )
 target_include_directories(pxtidb_objlib SYSTEM PUBLIC   # SYSTEM PUBLIC: inherit without error checking.
         ${LLVM_INCLUDE_DIRS}                                # Include LLVM headers.
         ${PXTIDB_INCLUDE_DIRECTORIES}                    # Third-party includes.
-        ${CMAKE_BINARY_DIR}/_deps/src/spdlog/include/       # Hack: spdlog.
-        ${CMAKE_BINARY_DIR}/_deps/src/utf8proc
         )
-target_link_options(pxtidb_objlib PUBLIC         # PUBLIC: all consumers of the library inherit the following.
+target_link_options(pxtidb_objlib PUBLIC            # PUBLIC: all consumers of the library inherit the following.
         ${PXTIDB_LINK_OPTIONS}
         )
 
@@ -521,6 +522,8 @@ target_link_options(pxtidb_objlib PUBLIC         # PUBLIC: all consumers of the 
 # The symptoms are typically weird -Werror warnings because the NoisePage Werror flags get applied to library code.
 # The hacky solution is to manually specify their target_include_directories as SYSTEM.
 target_include_directories(pxtidb_objlib SYSTEM PUBLIC ${CMAKE_BINARY_DIR}/_deps/src/fast_float/include/)
+# Include the source of the dependencies as sources that pxtidb can include.
+list(APPEND PXTIDB_INCLUDE_DIRECTORIES ${CMAKE_BINARY_DIR}/_deps/src/fast_float/include/)
 
 target_link_libraries(pxtidb_objlib PUBLIC       # PUBLIC: all consumers of the library inherit the following.
         count
@@ -531,6 +534,7 @@ target_link_libraries(pxtidb_objlib PUBLIC       # PUBLIC: all consumers of the 
         madoka::madoka
         nlohmann_json::nlohmann_json
 #        pg_query::pg_query
+        utf8proc
         xbyak::xbyak
         xxHash::xxhash
         ${CMAKE_BINARY_DIR}/_deps/build/spdlog/libspdlog.a
@@ -607,6 +611,224 @@ if (${PXTIDB_UNITTEST_OUTPUT_ON_FAILURE})
 endif ()
 
 
+# unittest and jumbotests invoke ctest on tests which are labeled "unittest" and "jumbotests" respectively.
+# Unit tests are executed in parallel because we only care about correctness, not performance.
+# This means that two different unit tests could be executing at the same time.
+# In practice, figuring out the number to -j seems annoying and there doesn't appear to be a penalty for having too
+# many tests queued up, so we'll use the magic number ${PXTIDB_TEST_PARALLELISM}.
+# Footgun: Running tests in parallel causes wonderful breakages on OSX/clang. Not on Ubuntu/clang though.
+# Footgun: labels passed to -L are regex. Give them very unique names.
+add_custom_target(unittest
+        ctest
+        --resource-spec-file ${BUILD_SUPPORT_DATA_DIR}/ctest_resource_specs.json    # For controlling conflicting tests.
+        ${UNITTEST_OUTPUT_ON_FAILURE}       # Whether to print output when a test fails.
+        -j ${PXTIDB_TEST_PARALLELISM}       # Maximum number of parallel jobs.
+        -L unittest                         # Run all tests that have a label like unittests. See footgun warning above.
+        --no-compress-output                # Output verbosely so that it can be logged.
+        -T Test                             # Run tests and log it to Testing/*/Test.xml.
+        --timeout 3000                      # 3000 second timeout per test.
+        USES_TERMINAL)
+add_custom_target(jumbotests
+        ctest
+        --resource-spec-file ${BUILD_SUPPORT_DATA_DIR}/ctest_resource_specs.json    # For controlling conflicting tests.
+        ${UNITTEST_OUTPUT_ON_FAILURE}       # Whether to print output when a test fails -- warning, will be VERBOSE.
+        -j ${PXTIDB_TEST_PARALLELISM}       # Maximum number of parallel jobs.
+        -L jumbotests                       # Run all tests that have a label like jumbotests. See footgun warning above.
+        --no-compress-output                # Output verbosely so that it can be logged.
+        -T Test                             # Run tests and log it to Testing/*/Test.xml.
+        --timeout 3000                      # 3000 second timeout per test.
+        USES_TERMINAL)
+
+unset(UNITTEST_OUTPUT_ON_FAILURE)
+
+file(GLOB_RECURSE
+        PXTIDB_TEST_UTIL_SRCS
+        CONFIGURE_DEPENDS
+        ${PROJECT_SOURCE_DIR}/test/include/test_util/*.hh
+        ${PROJECT_SOURCE_DIR}/test/test_util/*.cc
+        )
+
+function(add_test_util_lib TYPE)
+    string(TOLOWER ${TYPE} TYPE_LOWER)
+    add_library(pxtidb_test_util_${TYPE_LOWER} ${TYPE} ${PXTIDB_TEST_UTIL_SRCS})
+    add_custom_command(TARGET pxtidb_test_util_${TYPE_LOWER} DEPENDS gtest gtest_main gmock gmock_main)
+    target_compile_options(pxtidb_test_util_${TYPE_LOWER} PRIVATE "-Werror" "-Wall")
+    # Inject the source directory path into the translation units for test utility lib
+    target_compile_definitions(pxtidb_test_util_${TYPE_LOWER} PRIVATE PXTIDB_BUILD_ROOT=${CMAKE_BINARY_DIR})
+    target_include_directories(pxtidb_test_util_${TYPE_LOWER} PUBLIC ${PROJECT_SOURCE_DIR}/test/include/)
+    target_include_directories(pxtidb_test_util_${TYPE_LOWER} SYSTEM PUBLIC
+            ${CMAKE_BINARY_DIR}/_deps/src/googletest/googlemock/include/
+            ${CMAKE_BINARY_DIR}/_deps/src/googletest/googletest/include/
+            )
+    target_link_libraries(pxtidb_test_util_${TYPE_LOWER} PUBLIC
+            ${CMAKE_BINARY_DIR}/lib/libgtest.a ${CMAKE_BINARY_DIR}/lib/libgmock.a
+            pxtidb_static)
+    set_target_properties(pxtidb_test_util_${TYPE_LOWER} PROPERTIES CXX_EXTENSIONS OFF UNITY_BUILD ${PXTIDB_UNITY_BUILD})
+endfunction()
+
+add_test_util_lib(STATIC)
+if (${PXTIDB_ENABLE_SHARED})
+    add_test_util_lib(SHARED)
+endif ()
+
+
+function(add_pxtidb_test
+        TEST_NAME                   # The name of this test.
+        TEST_SOURCES                # The CPP files for this test.
+        TEST_LABEL                  # The label of this test. Will be added as a dependency of this label.
+        SHOULD_EXCLUDE_FROM_ALL     # EXCLUDE_ALL if we should exclude from default ALL target, NO_EXCLUDE otherwise.
+        SHOULD_UNITY_BUILD          # UNITY if we should unity build, NO_UNITY otherwise.
+        )
+    set(TEST_OUTPUT_DIR "${CMAKE_BINARY_DIR}/test")             # Output directory for tests.
+
+    if (${SHOULD_EXCLUDE_FROM_ALL} STREQUAL "EXCLUDE_ALL")
+        set(EXCLUDE_OPTION "EXCLUDE_FROM_ALL")
+    elseif (${SHOULD_EXCLUDE_FROM_ALL} STREQUAL "NO_EXCLUDE")
+        set(EXCLUDE_OPTION "")
+    else ()
+        message(FATAL_ERROR "Invalid option for SHOULD_EXCLUDE_FROM_ALL.")
+    endif ()
+
+    if (${SHOULD_UNITY_BUILD} STREQUAL "UNITY")
+        set(UNITY_OPTION "ON")
+    elseif (${SHOULD_UNITY_BUILD} STREQUAL "NO_UNITY")
+        set(UNITY_OPTION "OFF")
+    else ()
+        message(FATAL_ERROR "Invalid option for SHOULD_UNITY_BUILD.")
+    endif ()
+
+    add_executable(${TEST_NAME} ${EXCLUDE_OPTION} ${TEST_SOURCES})
+
+    target_compile_options(${TEST_NAME} PRIVATE "-Werror" "-Wall" "-fvisibility=hidden")
+    target_link_libraries(${TEST_NAME} PRIVATE ${CMAKE_BINARY_DIR}/lib/libgmock_main.a)
+    if (${PXTIDB_ENABLE_SHARED})
+        target_link_libraries(${TEST_NAME} PRIVATE pxtidb_test_util_shared)
+    else ()
+        target_link_libraries(${TEST_NAME} PRIVATE pxtidb_test_util_static)
+    endif ()
+
+    set_target_properties(${TEST_NAME} PROPERTIES
+            CXX_EXTENSIONS OFF                                  # Disable compiler-specific extensions.
+            ENABLE_EXPORTS ON                                   # Export for tpl.
+            RUNTIME_OUTPUT_DIRECTORY "${TEST_OUTPUT_DIR}"       # Output the test binaries to this folder.
+            UNITY_BUILD "${UNITY_OPTION}"                       # Possibly choose to use unity builds.
+            )
+    # Include the testing directories.
+    target_include_directories(${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/test/include/)
+    # Include the src directories.
+    target_include_directories(${TEST_NAME} PUBLIC ${PXTIDB_INCLUDE_DIRECTORIES})
+    # TODO(WAN): The "modern" gtest_discover_test has a ton of files. Favoring legacy add_test for now...
+    add_test(${TEST_NAME} ${BUILD_SUPPORT_DIR}/run-test.sh ${CMAKE_BINARY_DIR} test ${TEST_OUTPUT_DIR}/${TEST_NAME})
+    # Label each test with TEST_LABEL so that ctest can run all the tests under the TEST_LABEL label later.
+    set_tests_properties(${TEST_NAME} PROPERTIES
+            LABELS "${TEST_LABEL};${TEST_NAME}"                 # Label the test.
+            ENVIRONMENT "PYTHONPATH=${PROJECT_SOURCE_DIR}"      # Set the PYTHONPATH to project root for self-driving.
+            )
+    # Add TEST_NAME as a dependency to TEST_LABEL. Note that TEST_LABEL must be a valid target!
+    add_dependencies(${TEST_LABEL} ${TEST_NAME})
+endfunction()
+
+file(GLOB_RECURSE PXTIDB_TEST_SOURCES
+        "test/common/*.cc"
+        )
+
+foreach (PXTIDB_TEST_CC ${PXTIDB_TEST_SOURCES})
+    file(RELATIVE_PATH PXTIDB_TEST_CC_REL "${PROJECT_SOURCE_DIR}/test" ${PXTIDB_TEST_CC})
+    get_filename_component(PXTIDB_TEST_DIR ${PXTIDB_TEST_CC_REL} DIRECTORY)
+    get_filename_component(PXTIDB_TEST ${PXTIDB_TEST_CC} NAME_WE)
+
+    if (NOT ${PXTIDB_BUILD_TESTS})
+        set(EXCLUDE_OR_NOT "EXCLUDE_ALL")
+    elseif (${PXTIDB_USE_JUMBOTESTS})
+        set(EXCLUDE_OR_NOT "EXCLUDE_ALL")
+    else ()
+        set(EXCLUDE_OR_NOT "NO_EXCLUDE")
+    endif ()
+
+    add_pxtidb_test(${PXTIDB_TEST} ${PXTIDB_TEST_CC} unittest ${EXCLUDE_OR_NOT} NO_UNITY)
+endforeach ()
+
+function(add_jumbotest
+        FOLDER_PATH     # The folder to jumbo together.
+        PREFIXES        # The prefixes of filenames within that folder that should be separate jumbos of their own.
+        )
+    set(TEST_OUTPUT_DIR "${CMAKE_BINARY_DIR}/test")             # Output directory for tests.
+    get_filename_component(FOLDER_NAME ${FOLDER_PATH} NAME_WE)
+    set(TEST_NAME jumbotest_${FOLDER_NAME})
+    file(GLOB_RECURSE JUMBO_SOURCES_ALL ${FOLDER_PATH}/*.cc)
+    set(TEST_NAME_SUFFIX "")
+
+    if (NOT ${PXTIDB_BUILD_TESTS})
+        set(EXCLUDE_OR_NOT "EXCLUDE_ALL")
+    elseif (${PXTIDB_USE_JUMBOTESTS})
+        set(EXCLUDE_OR_NOT "NO_EXCLUDE")
+    else ()
+        set(EXCLUDE_OR_NOT "EXCLUDE_ALL")
+    endif ()
+
+    if (${PXTIDB_UNITY_BUILD})
+        set(UNITY_OR_NOT "UNITY")
+    else ()
+        set(UNITY_OR_NOT "NO_UNITY")
+    endif ()
+
+    if (NOT "${PREFIXES}" STREQUAL "")
+        foreach (PREFIX ${PREFIXES})
+            file(GLOB_RECURSE JUMBO_SOURCES ${FOLDER_PATH}/${PREFIX}*.cc)
+            foreach (PREFIXED_FILE ${JUMBO_SOURCES})
+                list(REMOVE_ITEM JUMBO_SOURCES_ALL ${PREFIXED_FILE})
+            endforeach ()
+
+            add_pxtidb_test(jumbotest_${FOLDER_NAME}_${PREFIX} "${JUMBO_SOURCES}" "jumbotests" ${EXCLUDE_OR_NOT} ${UNITY_OR_NOT})
+        endforeach ()
+        set(TEST_NAME_SUFFIX "_other")
+    endif ()
+    if (NOT "${JUMBO_SOURCES_ALL}" STREQUAL "")
+        add_pxtidb_test(jumbotest_${FOLDER_NAME}${TEST_NAME_SUFFIX} "${JUMBO_SOURCES_ALL}" "jumbotests" ${EXCLUDE_OR_NOT} ${UNITY_OR_NOT})
+    endif ()
+endfunction()
+
+
+# Tests are split up for the following reasons:
+#   1. Faster compilation times - the fewer the overall test targets, the faster it compiles.
+#   2. Faster test execution times - the long running tests are split off on their own.
+#   3. Resource sharing - if two tests both want port 15721, then only one of them can run at a time.
+# If you compiled regular non-jumbo tests, you would get 2 and 3 automatically. But 1 suffers, hence jumbotests.
+#
+# The second argument to add_jumbotest is a CMake list (aka a ;-separated string) of unique test prefixes.
+# Each prefix will be globbed together into one test executable.
+# Be careful that your prefixes are really unique, otherwise a test will be run multiple times.
+
+add_jumbotest("test/common" "")
+#add_jumbotest("test/binder" "")
+#add_jumbotest("test/catalog" "catalog_sql_test;")
+#add_jumbotest("test/common" "bitmap_test;concurrent_bitmap_test;rusage_monitor_test;")
+#add_jumbotest("test/execution" "ast;compiler_test;index_create_test;index_iterator_test;sql;storage_interface_test;util;vm;")
+#add_jumbotest("test/integration" "")
+#add_jumbotest("test/metrics" "metrics_test;")
+#add_jumbotest("test/network" "network_test;")
+#add_jumbotest("test/optimizer" "hyperloglog_test;")
+#add_jumbotest("test/parser" "")
+#add_jumbotest("test/planner" "")
+#add_jumbotest("test/self_driving" "")
+#add_jumbotest("test/settings" "")
+#add_jumbotest("test/storage" "block_access_controller_test;block_compactor_test;bwtree_test;bwtree_index_test;data_table_test;data_table_concurrent_test;hash_index_test;large_garbage_collector_test;log_test;tuple_access_strategy_test;")
+#add_jumbotest("test/task" "")
+#add_jumbotest("test/traffic_cop" "traffic_cop_test;")
+#add_jumbotest("test/transaction" "large_transaction_test;")
+#
+## Read up on CTest resource groups: https://cmake.org/cmake/help/latest/manual/ctest.1.html#resource-allocation
+## All tests that try to launch the server on port 15721 must declare that here.
+#set_tests_properties(
+#        catalog_sql_test jumbotest_catalog_catalog_sql_test
+#        metrics_test jumbotest_metrics_metrics_test
+#        network_test jumbotest_network_network_test
+#        traffic_cop_test jumbotest_traffic_cop_traffic_cop_test
+#        PROPERTIES RESOURCE_GROUPS "port15721:1")
+#set_tests_properties(
+#        model_server_test
+#        PROPERTIES RESOURCE_GROUPS "port15721:1;port9022:1")
+
 #######################################################################################################################
 # HEADER Generated file destinations.
 #######################################################################################################################
@@ -664,8 +886,8 @@ print_properties(pxtidb)
 file(GLOB_RECURSE LINT_FILES
         "${PROJECT_SOURCE_DIR}/src/*.hh"
         "${PROJECT_SOURCE_DIR}/src/*.cc"
-#        "${PROJECT_SOURCE_DIR}/test/*.hh"
-#        "${PROJECT_SOURCE_DIR}/test/*.cc"
+        "${PROJECT_SOURCE_DIR}/test/*.hh"
+        "${PROJECT_SOURCE_DIR}/test/*.cc"
         )
 
 set(CLANG_TOOLS_SEARCH_PATH

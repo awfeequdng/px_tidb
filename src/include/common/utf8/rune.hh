@@ -1,10 +1,10 @@
 #pragma once
 
-#include "utf8proc.h"
-
 #include <cctype>
 #include <cstdint>
 #include <string>
+
+#include "utf8proc.h"
 
 namespace common::utf8 {
 struct rune_t final {
@@ -94,34 +94,31 @@ static inline const uint8_t s_utf8_first[256] = {
     0x34, 0x04, 0x04, 0x04, 0x44, 0xf1, 0xf1, 0xf1, 0xf1, 0xf1, 0xf1, 0xf1, 0xf1, 0xf1, 0xf1, 0xf1,  // 0xF0-0xFF
 };
 
-    struct utf8_accept_range_t {
-        uint8_t low;
-        uint8_t high;
-    };
+struct utf8_accept_range_t {
+    uint8_t low;
+    uint8_t high;
+};
 
-    static inline const utf8_accept_range_t s_utf8_accept_ranges[] = {
-            {.low = 0x80, .high = 0xbf},
-            {.low = 0xa0, .high = 0xbf},
-            {.low = 0x80, .high = 0x9f},
-            {.low = 0x90, .high = 0xbf},
-            {.low = 0x80, .high = 0x8f},
-    };
+static inline const utf8_accept_range_t s_utf8_accept_ranges[] = {
+    {.low = 0x80, .high = 0xbf}, {.low = 0xa0, .high = 0xbf}, {.low = 0x80, .high = 0x9f},
+    {.low = 0x90, .high = 0xbf}, {.low = 0x80, .high = 0x8f},
+};
 
-    struct codepoint_t {
-        size_t width = 1;
-        rune_t value = rune_invalid;
-    };
+struct codepoint_t {
+    size_t width = 1;
+    rune_t value = rune_invalid;
+};
 
-    struct encoded_rune_t {
-        size_t width = 1;
-        rune_t value = rune_invalid;
-        uint8_t data[4];
-    };
+struct encoded_rune_t {
+    size_t width = 1;
+    rune_t value = rune_invalid;
+    uint8_t data[4];
+};
 
-    int64_t strlen(std::string_view str);
+int64_t strlen(std::string_view str);
 
-    encoded_rune_t encode(const rune_t& r);
+encoded_rune_t encode(const rune_t &r);
 
-    codepoint_t decode(const char* str, size_t length);
+codepoint_t decode(const char *str, size_t length);
 
 }  // namespace common::utf8
