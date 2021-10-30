@@ -65,21 +65,16 @@ TEST(Utf8ReaderTest, test_pos) {
     EXPECT_EQ((std::string)rune, "中");
 
     auto pos = reader.pos();
-    // line start from 1
-    EXPECT_EQ(pos._line, 1);
-    // col start from 1
-    EXPECT_EQ(pos._col, 4);
-    // col start from 0
+    EXPECT_EQ(pos._line, 0);
+    EXPECT_EQ(pos._col, 3);
     EXPECT_EQ(pos._offset, 3);
 
     rune = reader.next();
     EXPECT_EQ((std::string)rune, "国");
     pos = reader.pos();
 
-    EXPECT_EQ(pos._line, 1);
-    // col start from 1
-    EXPECT_EQ(pos._col, 7);
-    // col start from 0
+    EXPECT_EQ(pos._line, 0);
+    EXPECT_EQ(pos._col, 6);
     EXPECT_EQ(pos._offset, 6);
 
     rune = reader.next();
@@ -87,8 +82,8 @@ TEST(Utf8ReaderTest, test_pos) {
     EXPECT_TRUE(reader.eof());
     pos = reader.pos();
 
-    EXPECT_EQ(pos._line, 1);
-    EXPECT_EQ(pos._col, 10);
+    EXPECT_EQ(pos._line, 0);
+    EXPECT_EQ(pos._col, 9);
     EXPECT_EQ(pos._offset, 9);
 }
 
@@ -102,21 +97,16 @@ TEST(Utf8ReaderTest, test_prev) {
     EXPECT_EQ((std::string)rune, "中");
 
     auto pos = reader.pos();
-    // line start from 1
-    EXPECT_EQ(pos._line, 1);
-    // col start from 1
-    EXPECT_EQ(pos._col, 4);
-    // col start from 0
+    EXPECT_EQ(pos._line, 0);
+    EXPECT_EQ(pos._col, 3);
     EXPECT_EQ(pos._offset, 3);
 
     rune = reader.next();
     EXPECT_EQ((std::string)rune, "国");
     pos = reader.pos();
 
-    EXPECT_EQ(pos._line, 1);
-    // col start from 1
-    EXPECT_EQ(pos._col, 7);
-    // col start from 0
+    EXPECT_EQ(pos._line, 0);
+    EXPECT_EQ(pos._col, 6);
     EXPECT_EQ(pos._offset, 6);
 
     rune = reader.next();
@@ -124,8 +114,8 @@ TEST(Utf8ReaderTest, test_prev) {
     EXPECT_TRUE(reader.eof());
     pos = reader.pos();
 
-    EXPECT_EQ(pos._line, 1);
-    EXPECT_EQ(pos._col, 10);
+    EXPECT_EQ(pos._line, 0);
+    EXPECT_EQ(pos._col, 9);
     EXPECT_EQ(pos._offset, 9);
 
     // get previous rune and set pos to previous position
@@ -133,10 +123,8 @@ TEST(Utf8ReaderTest, test_prev) {
     pos = reader.pos();
     EXPECT_EQ((std::string)rune, "人");
     EXPECT_FALSE(reader.eof());
-    EXPECT_EQ(pos._line, 1);
-    // col start from 1
-    EXPECT_EQ(pos._col, 7);
-    // col start from 0
+    EXPECT_EQ(pos._line, 0);
+    EXPECT_EQ(pos._col, 6);
     EXPECT_EQ(pos._offset, 6);
 }
 
@@ -164,17 +152,18 @@ TEST(Utf8ReaderTest, test_set_index) {
 
     auto pos = reader.pos();
 
-    EXPECT_EQ(pos._line, 1);
-    EXPECT_EQ(pos._col, 8);
+    EXPECT_EQ(pos._line, 0);
+    EXPECT_EQ(pos._col, 7);
     EXPECT_EQ(pos._offset, 7);
 
+    // it will seek failed
     EXPECT_FALSE(reader.seek(10));
     EXPECT_TRUE(reader.seek(3));
     pos = reader.pos();
     rune = reader.curr();
 
-    EXPECT_EQ(pos._line, 1);
-    EXPECT_EQ(pos._col, 4);
+    EXPECT_EQ(pos._line, 0);
+    EXPECT_EQ(pos._col, 3);
     EXPECT_EQ(pos._offset, 3);
     EXPECT_EQ((std::string)rune, "国");
 }

@@ -2,11 +2,13 @@
 
 namespace common::utf8 {
 
-reader_t::reader_t(std::string_view slice) : _slice(slice), _width_stack() {}
+reader_t::reader_t(const std::string &slice) : _slice(slice), _width_stack() {
+    _idx2pos[0] = {};
+}
 
 size_t reader_t::length() { return _slice.length(); }
 
-bool reader_t::eof() const { return _index > _slice.size() - 1; }
+bool reader_t::eof() const { return _index >= _slice.size(); }
 
 Pos reader_t::pos() const { return _pos; }
 
@@ -47,8 +49,13 @@ rune_t reader_t::curr() {
     if (eof()) return rune_eof;
 
     uint32_t width;
-    return read(width);
+    auto r = read(width);
+    _last_width = width;
+
+    return r;
 }
+
+rune_t reader_t::peek() { return curr(); }
 
 rune_t reader_t::next() {
     if (eof()) return rune_eof;
@@ -109,7 +116,7 @@ bool reader_t::move_next() {
     return true;
 }
 
-std::string_view reader_t::slice() const { return _slice; }
+std::string reader_t::slice() const { return _slice; }
 
 rune_t reader_t::read(uint32_t &width) const {
     width = 1;
@@ -130,20 +137,18 @@ rune_t reader_t::read(uint32_t &width) const {
     return rune;
 }
 
-std::string_view reader_t::make_slice(size_t offset, size_t length) const {
-    return std::string_view(_slice.data() + offset, length);
-}
+std::string reader_t::make_slice(size_t offset, size_t len) const { return _slice.substr(offset, len); }
 
 rune_t reader_t::incAsLongAs(std::function<bool(rune_t)> fn) {
-    auto ch = curr();
     while (true) {
+        auto ch = peek();
         if (!fn(ch)) {
             return ch;
         }
         if (ch.is_errored()) {
             return rune_t{0};
         }
-        ch = next();
+        next();
     }
 }
 

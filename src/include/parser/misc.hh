@@ -18,7 +18,9 @@ inline bool isUserVarChar(common::utf8::rune_t ch) {
     return isLetter(ch) || isDigit(ch) || ch == '_' || ch == '$' || ch == '.' || isIdentExtend(ch);
 }
 
-typedef std::function<std::tuple<int, common::utf8::Pos, std::string>(parser::Scanner *)> trieFunc;
+inline bool isSpace(common::utf8::rune_t ch) { return ch.is_space(); }
+
+typedef std::function<std::tuple<int, common::utf8::Pos, std::string>(parser::Scanner &)> trieFunc;
 struct trieNode {
 #define BYTE_MAX 255
     std::shared_ptr<trieNode> childs[BYTE_MAX + 1];
@@ -27,5 +29,6 @@ struct trieNode {
 };
 
 std::shared_ptr<trieNode> getRuleTable();
-
+std::unordered_map<std::string, int> getTokenMap();
+std::string getTokenStr(int tok);
 }  // namespace parser

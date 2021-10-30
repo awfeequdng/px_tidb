@@ -734,6 +734,7 @@ enum temporary_token : int {
     tok_hintSetVar,
     tok_hintResourceGroup,
     tok_hintQBName,
+    tok_hintComment,
 
     // TiDB hint names
     tok_hintAggToCop,
@@ -777,6 +778,13 @@ enum temporary_token : int {
     tok_hintFirstMatch,
     tok_hintLooseScan,
     tok_hintMaterialization,
+
+    tok_stringLit,
+    tok_intLit,
+    tok_hexLit,
+    tok_bitLit,
+    tok_floatLit,
+    tok_decLit,
 };
 
 }  // namespace parser

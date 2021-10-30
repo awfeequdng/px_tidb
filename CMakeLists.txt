@@ -420,6 +420,7 @@ add_pxtidb_dep(xxHash https://github.com/Cyan4973/xxHash.git v0.8.0)
 add_pxtidb_dep(fast_float https://github.com/lemire/fast_float.git v1.0.0)
 add_pxtidb_dep(utf8proc https://github.com/JuliaStrings/utf8proc.git v2.6.1)
 add_pxtidb_dep(stx https://github.com/lamarrr/STX.git v1.0.1)
+add_pxtidb_dep(fmt https://github.com/fmtlib/fmt.git 8.0.1)
 # Handle other dependencies.
 
 # Include the source of the dependencies as sources that pxtidb can include.
@@ -427,7 +428,7 @@ list(APPEND PXTIDB_INCLUDE_DIRECTORIES ${CMAKE_BINARY_DIR}/_deps/src/)
 list(APPEND PXTIDB_INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/src/include/)
 list(APPEND PXTIDB_INCLUDE_DIRECTORIES ${CMAKE_BINARY_DIR}/_deps/src/spdlog/include/)       # Hack: spdlog.
 list(APPEND PXTIDB_INCLUDE_DIRECTORIES ${CMAKE_BINARY_DIR}/_deps/src/utf8proc/)
-
+list(APPEND PXTIDB_INCLUDE_DIRECTORIES ${CMAKE_BINARY_DIR}/_deps/src/fmt/include)
 # TODO(WAN): libpg_query is CURSED. Someone else is welcome to fix it. Or I may retry in the future.
 #add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/libpg_query/ EXCLUDE_FROM_ALL)
 
@@ -534,6 +535,7 @@ target_link_libraries(pxtidb_objlib PUBLIC       # PUBLIC: all consumers of the 
         ips4o::ips4o
         madoka::madoka
         nlohmann_json::nlohmann_json
+        ${CMAKE_BINARY_DIR}/_deps/build/fmt/libfmt.a
 #        pg_query::pg_query
         utf8proc
         xbyak::xbyak

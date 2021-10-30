@@ -80,7 +80,9 @@ rune_t::operator std::size_t() const { return _value; }
 rune_t::operator std::string() const {
     std::string temp{};
     auto encode_result = encode(rune_t(_value));
-    for (size_t j = 0; j < encode_result.width; j++) temp += static_cast<char>(encode_result.data[j]);
+    for (size_t j = 0; j < encode_result.width; j++) {
+        temp += static_cast<char>(encode_result.data[j]);
+    }
     return temp;
 }
 
@@ -89,9 +91,22 @@ rune_t &rune_t::operator=(int32_t rhs) {
     return *this;
 }
 
-bool rune_t::operator==(char rhs) const { return static_cast<char>(_value) == rhs; }
+rune_t &rune_t::operator=(char rhs) {
+    _value = rhs;
+    return *this;
+}
 
-bool rune_t::operator!=(char rhs) const { return static_cast<char>(_value) != rhs; }
+bool rune_t::operator==(char rhs) const {
+    // todo: this is error when _value greater than 255
+    //    return static_cast<char>(_value) == rhs;
+    return _value == rhs;
+}
+
+bool rune_t::operator!=(char rhs) const {
+    //    todo: this is error when _value greater than 255
+    //    return static_cast<char>(_value) != rhs;
+    return _value != rhs;
+}
 
 bool rune_t::operator<(int32_t rhs) const { return _value < rhs; }
 
@@ -157,6 +172,13 @@ encoded_rune_t encode(const rune_t &r) {
         return e;
     }
 
+    // todo: can not encode the rune, so return it
+    //    if (i <= (1 << 8) - 1) {
+    //        e.data[0] = r_int;
+    //        e.width = 1;
+    //        return e;
+    //    }
+
     if (i <= (1 << 11) - 1) {
         e.data[0] = static_cast<uint8_t>(0xc0 | static_cast<uint8_t>((r_int >> 6)));
         e.data[1] = static_cast<uint8_t>(0x80 | (static_cast<uint8_t>((r_int)) & mask));
@@ -191,10 +213,11 @@ encoded_rune_t encode(const rune_t &r) {
 }
 
 codepoint_t decode(const char *str, size_t length) {
-    codepoint_t cp{};
-    if (length == 0) return cp;
-
+    if (length == 0) return {};
     auto s0 = (uint8_t)str[0];
+    codepoint_t cp{};
+    cp.value = s0;
+
     uint8_t x = s_utf8_first[s0];
     uint8_t sz;
     uint8_t b1;
@@ -202,28 +225,32 @@ codepoint_t decode(const char *str, size_t length) {
     uint8_t b3;
     utf8_accept_range_t accept{};
 
-    if (x >= 0xf0) {
-        int mask = (x << 31) >> 31;
-        cp.value = (s0 & (~mask)) | (static_cast<int>(rune_invalid) & mask);
-        cp.width = 1;
-        return cp;
-    }
-
     if (s0 < 0x80) {
         cp.value = s0;
         cp.width = 1;
         return cp;
     }
 
+    if (x >= 0xf0) {
+        //        int mask = (x << 31) >> 31;
+        //        cp.value = (s0 & (~mask)) | (static_cast<int>(rune_invalid) & mask);
+        cp.width = 1;
+        return cp;
+    }
+
     sz = static_cast<uint8_t>(x & 7);
     accept = s_utf8_accept_ranges[x >> 4];
-    if (length < sizeof(sz)) return cp;
+    // todo: I think it's wrong here
+    //    if (length < sizeof(sz)) return cp;
+    if (length < sz) return cp;
 
     b1 = (uint8_t)str[1];
     if (b1 < accept.low || accept.high < b1) return cp;
 
     if (sz == 2) {
+        // todo: I think it's wrong here
         cp.value = (s0 & 0x1f) << 6 | (b1 & 0x3f);
+        //        cp.value = (s0 & 0xff) << 8 | (b1 & 0xff);
         cp.width = 2;
         return cp;
     }
@@ -232,7 +259,9 @@ codepoint_t decode(const char *str, size_t length) {
     if (!(b2 >= 0x80 && b2 <= 0xbf)) return cp;
 
     if (sz == 3) {
+        // todo: I think it's wrong here
         cp.value = (s0 & 0x1f) << 12 | (b1 & 0x3f) << 6 | (b2 & 0x3f);
+        //        cp.value = (s0 & 0xff) << 16 | (b1 & 0xff) << 8 | (b2 & 0xff);
         cp.width = 3;
         return cp;
     }
@@ -240,7 +269,9 @@ codepoint_t decode(const char *str, size_t length) {
     b3 = (uint8_t)str[3];
     if (!(b3 >= 0x80 && b3 <= 0xbf)) return cp;
 
+    // todo: I think it's wrong here
     cp.value = (s0 & 0x07) << 18 | (b1 & 0x3f) << 12 | (b2 & 0x3f) << 6 | (b3 & 0x3f);
+    //    cp.value = (s0 & 0xff) << 24 | (b1 & 0xff) << 16 | (b2 & 0xff) << 8 | (b3 & 0xff);
     cp.width = 4;
 
     return cp;

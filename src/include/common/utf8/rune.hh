@@ -7,11 +7,11 @@
 #include "utf8proc.h"
 
 namespace common::utf8 {
-class Pos {
-public:
+struct Pos {
     int _line;
     int _col;
     int _offset;
+    bool operator==(const Pos &pos) const { return _line == pos._line && _col == pos._col && _offset == pos._offset; }
 };
 
 struct rune_t final {
@@ -19,9 +19,15 @@ struct rune_t final {
 
     explicit constexpr rune_t(int32_t value) : _value(value) {}
 
+    // todo: this version of constructor is just for convenient
+    constexpr rune_t(char value) : _value(value) {}
+//    explicit constexpr rune_t(char value) : _value(value) {}
+
     constexpr rune_t(const rune_t &rhs) : _value(rhs._value) {}
 
     rune_t &operator=(int32_t rhs);
+
+    rune_t &operator=(char rhs);
 
     explicit operator char() const;
 

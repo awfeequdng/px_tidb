@@ -5,7 +5,7 @@
 #include "parser/token.hh"
 
 namespace parser {
-std::shared_ptr<trieNode> ruleTable = std::make_shared<trieNode>();
+std::shared_ptr<trieNode> ruleTable;
 
 std::shared_ptr<trieNode> getRuleTable() { return ruleTable; }
 
@@ -37,7 +37,8 @@ void initTokenFunc(std::string str, trieFunc fn) {
     }
 }
 
-void init() {
+__attribute__((constructor)) void init() {
+    ruleTable = std::make_shared<trieNode>();
     ruleTable->token = tok_invalid;
     initTokenByte('/', int('/'));
     initTokenByte('+', int('+'));
@@ -747,6 +748,18 @@ std::unordered_map<std::string, int> tokenMap = {
     {"ZEROFILL", tok_zerofill},
     {"WAIT", tok_wait},
 };
+
+std::unordered_map<std::string, int> getTokenMap() { return tokenMap; }
+
+std::string getTokenStr(int tok) {
+    auto tok_map = getTokenMap();
+    for (auto [str, t] : tok_map) {
+        if (t == tok) {
+            return str;
+        }
+    }
+    return {};
+}
 
 // isInTokenMap indicates whether the target string is contained in tokenMap.
 bool isInTokenMap(std::string target) { return tokenMap.find(target) != tokenMap.end(); }
