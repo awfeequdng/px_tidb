@@ -21,7 +21,7 @@ struct rune_t final {
 
     // todo: this version of constructor is just for convenient
     constexpr rune_t(char value) : _value(value) {}
-//    explicit constexpr rune_t(char value) : _value(value) {}
+    //    explicit constexpr rune_t(char value) : _value(value) {}
 
     constexpr rune_t(const rune_t &rhs) : _value(rhs._value) {}
 
@@ -95,6 +95,7 @@ static constexpr rune_t rune_invalid = rune_t(0xfffd);
 static constexpr rune_t rune_max = rune_t(0x0010ffff);
 static constexpr rune_t rune_bom = rune_t(0xfeff);
 static constexpr rune_t rune_eof = rune_t(-1);
+static constexpr int int_rune_invalid = 0xfffd;
 
 static inline const uint8_t s_utf8_first[256] = {
     0xf0, 0xf0, 0xf0, 0xf0, 0xf0, 0xf0, 0xf0, 0xf0, 0xf0, 0xf0, 0xf0, 0xf0, 0xf0, 0xf0, 0xf0, 0xf0,  // 0x00-0x0F

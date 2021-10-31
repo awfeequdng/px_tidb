@@ -2,9 +2,7 @@
 
 namespace common::utf8 {
 
-reader_t::reader_t(const std::string &slice) : _slice(slice), _width_stack() {
-    _idx2pos[0] = {};
-}
+reader_t::reader_t(const std::string &slice) : _slice(slice), _width_stack() { _idx2pos[0] = {}; }
 
 size_t reader_t::length() { return _slice.length(); }
 
@@ -64,12 +62,12 @@ rune_t reader_t::next() {
     auto rune = read(width);
     _index += width;
     _width_stack.push(width);
+    _pos._col += width;
+    _pos._offset = _index;
     if (rune == '\n') {
         _pos._line++;
         _pos._col = 0;
     }
-    _pos._col += width;
-    _pos._offset = _index;
     _idx2pos[_index] = _pos;
     return rune;
 }

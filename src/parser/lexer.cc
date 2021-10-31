@@ -4,7 +4,55 @@
 #include "parser/token.hh"
 
 namespace parser {
-std::tuple<int, common::utf8::Pos, std::string> startWithAt(Scanner &s) { return {}; }
+
+std::tuple<int, common::utf8::Pos, std::string> startWithAt(Scanner &s) {
+    //    auto pos = s.reader()->pos();
+    //    s.reader()->next();
+    //
+    //    auto [tok, lit] = scanIdentifierOrString(s);
+    //    switch (tok) {
+    //        case '@': {
+    //            s.reader()->next();
+    //            //        auto stream = s.reader()
+    //            std::string stream;
+    //            //                auto stream = s.r.s[pos.Offset+2:];
+    //            std::string prefix;
+    //            for (std::string v : {"global.", "session.", "local."}) {
+    //                if (v.length() > stream.length()) {
+    //                    continue;
+    //                }
+    //                // 不区分大小写的比较
+    //                if (stream.substr(0, v.length()).compare(v)) {
+    //                    prefix = v;
+    //                    s.r.incN(len(v));
+    //                    break;
+    //                }
+    //            }
+    //            std::tie(tok, lit) = scanIdentifierOrString(s);
+    //            switch (tok) {
+    //                case tok_stringLit:
+    //                    [[fallthrough]];
+    //                case tok_quotedIdentifier:
+    //                    tok = tok_doubleAtIdentifier;
+    //                    lit = "@@" + prefix + lit;
+    //                    break;
+    //                case tok_identifier:
+    //                    tok = tok_doubleAtIdentifier;
+    //                    lit = s.reader()->data(pos);
+    //                    break;
+    //            }
+    //            break;
+    //        }
+    //        case common::utf8::int_rune_invalid:
+    //            break;
+    //        default:
+    //            tok = tok_singleAtIdentifier;
+    //            break;
+    //    }
+    //
+    //    return {tok, pos, lit};
+    return {};
+}
 
 std::tuple<int, common::utf8::Pos, std::string> startWithSlash(Scanner &s) {
     auto pos = s.reader()->pos();
@@ -96,12 +144,85 @@ std::tuple<int, common::utf8::Pos, std::string> startWithSlash(Scanner &s) {
         return {};
     }
 }
-std::tuple<int, common::utf8::Pos, std::string> startWithStar(Scanner &s) { return {}; }
+
+std::tuple<int, common::utf8::Pos, std::string> startWithStar(Scanner &s) {
+    auto pos = s.reader()->pos();
+    s.reader()->next();
+
+    // skip and exit '/*!' if we see '*/'
+    if (s._inBangComment && s.reader()->peek() == '/') {
+        s._inBangComment = false;
+        s.reader()->next();
+        return s.scan();
+    }
+    // otherwise it is just a normal star.
+    s._identifierDot = false;
+    return {'*', pos, "*"};
+}
+
 std::tuple<int, common::utf8::Pos, std::string> startWithDash(Scanner &s) { return {}; }
-std::tuple<int, common::utf8::Pos, std::string> startWithSharp(Scanner &s) { return {}; }
-std::tuple<int, common::utf8::Pos, std::string> startWithXx(Scanner &s) { return {}; }
-std::tuple<int, common::utf8::Pos, std::string> startWithNn(Scanner &s) { return {}; }
-std::tuple<int, common::utf8::Pos, std::string> startWithBb(Scanner &s) { return {}; }
+
+std::tuple<int, common::utf8::Pos, std::string> startWithSharp(Scanner &s) {
+    s.reader()->incAsLongAs([](common::utf8::rune_t ch) { return ch != '\n'; });
+    return s.scan();
+}
+
+std::tuple<int, common::utf8::Pos, std::string> startWithXx(Scanner &s) {
+    int tok;
+    std::string lit;
+    auto pos = s.reader()->pos();
+    s.reader()->next();
+    if (s.reader()->peek() == '\'') {
+        s.reader()->next();
+        s.scanHex();
+        if (s.reader()->peek() == '\'') {
+            s.reader()->next();
+            tok = tok_hexLit;
+            lit = s.reader()->data(pos);
+        } else {
+            tok = (int)common::utf8::rune_invalid;
+        }
+        return {tok, pos, lit};
+    }
+    s.reader()->updatePos(pos);
+    return scanIdentifier(s);
+}
+
+std::tuple<int, common::utf8::Pos, std::string> startWithNn(Scanner &s) {
+    auto [tok, pos, lit] = scanIdentifier(s);
+    // The National Character Set, N'some text' or n'some test'.
+    // See https://dev.mysql.com/doc/refman/5.7/en/string-literals.html
+    // and https://dev.mysql.com/doc/refman/5.7/en/charset-national.html
+    if (lit == "N" || lit == "n") {
+        if (s.reader()->peek() == '\'') {
+            tok = tok_underscoreCS;
+            lit = "utf8";
+        }
+    }
+    return {tok, pos, lit};
+}
+
+std::tuple<int, common::utf8::Pos, std::string> startWithBb(Scanner &s) {
+    int tok;
+    std::string lit;
+    auto pos = s.reader()->pos();
+    s.reader()->next();
+    if (s.reader()->peek() == '\'') {
+        s.reader()->next();
+        s.scanBit();
+        if (s.reader()->peek() == '\'') {
+            s.reader()->next();
+            tok = tok_bitLit;
+            lit = s.reader()->data(pos);
+        } else {
+            tok = (int)common::utf8::rune_invalid;
+        }
+        return {tok, pos, lit};
+    }
+    s.reader()->updatePos(pos);
+    return scanIdentifier(s);
+}
+
 std::tuple<int, common::utf8::Pos, std::string> startWithDot(Scanner &s) { return {}; }
 
 std::tuple<int, common::utf8::Pos, std::string> scanIdentifier(Scanner &scanner) {
@@ -109,7 +230,32 @@ std::tuple<int, common::utf8::Pos, std::string> scanIdentifier(Scanner &scanner)
     scanner.reader()->incAsLongAs(isIdentChar);
     return {tok_identifier, pos, scanner.reader()->data(pos)};
 }
-std::tuple<int, common::utf8::Pos, std::string> scanQuotedIdent(Scanner &s) { return {}; }
+
+std::tuple<int, common::utf8::Pos, std::string> scanQuotedIdent(Scanner &s) {
+    int tok;
+    std::string lit;
+    auto pos = s.reader()->pos();
+    s.reader()->next();
+    // clear buffer
+    s.buf().str(std::string());
+    while (true) {
+        auto ch = s.reader()->next();
+        if (ch == common::utf8::rune_invalid && s.reader()->eof()) {
+            tok = (int)common::utf8::rune_invalid;
+            return {tok, pos, lit};
+        }
+        if (ch == '`') {
+            if (s.reader()->peek() != '`') {
+                // don't return identifier in case that it's interpreted as keyword token later.
+                tok = tok_quotedIdentifier;
+                lit = s.buf().str();
+                return {tok, pos, lit};
+            }
+            s.reader()->next();
+        }
+        s.buf().sputc((int)ch);
+    }
+}
 
 std::tuple<int, common::utf8::Pos, std::string> startWithNumber(Scanner &s) {
     if (s._identifierDot) {
@@ -169,5 +315,36 @@ std::tuple<int, common::utf8::Pos, std::string> startWithNumber(Scanner &s) {
     auto lit = s.reader()->data(pos);
     return {tok, pos, lit};
 }
+
 std::tuple<int, common::utf8::Pos, std::string> startString(Scanner &s) { return s.scanString(); }
+
+std::pair<int, std::string> scanIdentifierOrString(Scanner &s) {
+    //    ch1 := s.r.peek()
+    auto ch1 = s.reader()->peek();
+    int tok;
+    std::string lit;
+    common::utf8::Pos pos;
+
+    switch ((int)ch1) {
+        case '\'':
+            [[fallthrough]];
+        case '"':
+            std::tie(tok, pos, lit) = startString(s);
+            break;
+        case '`':
+            std::tie(tok, pos, lit) = scanQuotedIdent(s);
+            break;
+        default:
+            if (isUserVarChar(ch1)) {
+                pos = s.reader()->pos();
+                s.reader()->incAsLongAs(isUserVarChar);
+                tok = tok_identifier;
+                lit = s.reader()->data(pos);
+            } else {
+                tok = int(ch1);
+            }
+            break;
+    }
+    return {tok, lit};
+}
 }  // namespace parser

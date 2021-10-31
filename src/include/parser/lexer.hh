@@ -17,4 +17,6 @@ std::tuple<int, common::utf8::Pos, std::string> scanIdentifier(Scanner &s);
 std::tuple<int, common::utf8::Pos, std::string> scanQuotedIdent(Scanner &s);
 std::tuple<int, common::utf8::Pos, std::string> startWithNumber(Scanner &s);
 std::tuple<int, common::utf8::Pos, std::string> startString(Scanner &s);
+
+std::pair<int, std::string> scanIdentifierOrString(Scanner &s);
 }  // namespace parser

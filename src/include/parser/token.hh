@@ -785,6 +785,10 @@ enum temporary_token : int {
     tok_bitLit,
     tok_floatLit,
     tok_decLit,
+    tok_underscoreCS,
+    tok_quotedIdentifier,
+    tok_doubleAtIdentifier,
+    tok_singleAtIdentifier,
 };
 
 }  // namespace parser
